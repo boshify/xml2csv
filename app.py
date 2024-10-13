@@ -4,6 +4,7 @@ import requests
 from lxml import etree
 import csv
 from io import StringIO
+from collections import Counter
 
 # Helper function to flatten XML elements for one entity
 def flatten_element(element, parent_prefix=""):
@@ -24,6 +25,25 @@ def flatten_element(element, parent_prefix=""):
         flat_data.update(child_data)
 
     return flat_data
+
+# Function to guess the main root tag (repeated entity tag)
+def guess_root_tag(xml_stream):
+    context = etree.iterparse(xml_stream, events=("start",), recover=True)
+    tag_counter = Counter()
+    
+    for event, elem in context:
+        tag_counter[elem.tag] += 1
+        # Stop after counting 500 elements for efficiency
+        if len(tag_counter) > 500:
+            break
+        elem.clear()
+
+    # Guess the root tag by finding the most frequent tag (likely a repeated entity)
+    guessed_tag = tag_counter.most_common(1)[0][0]
+    
+    # Reset the stream for further processing after guessing the tag
+    xml_stream.seek(0)  # Reset stream position to beginning
+    return guessed_tag
 
 # Function to parse XML and stream it to CSV in batches, with real-time table preview
 def stream_xml_to_csv_with_preview(xml_stream, csv_file, stop_flag, root_tag):
@@ -104,7 +124,6 @@ st.title("Flexible XML to CSV Converter with Live Table Preview")
 
 # URL input
 url = st.text_input("Enter the URL of the XML file")
-root_tag = st.text_input("Enter the root tag for the entities (e.g., 'Product')")
 
 # Button to stop the process
 stop_processing = st.button("Stop Conversion")
@@ -115,7 +134,7 @@ def stop_flag():
 
 # Process the XML file
 if st.button("Start Conversion"):
-    if url and root_tag:
+    if url:
         try:
             # Step 1: Stream the XML file using requests with stream=True
             st.write("Fetching XML file... This can take a while for very large files.")
@@ -136,6 +155,12 @@ if st.button("Start Conversion"):
 
             with requests.get(url, headers=headers, stream=True) as response:
                 if response.status_code == 200:
+                    # Guess the root tag for the main entities
+                    st.write("Guessing the root entity tag...")
+                    root_tag = guess_root_tag(response.raw)
+
+                    st.write(f"Guessed root tag: {root_tag}")
+
                     # Stream the XML data and save CSV directly to a file
                     csv_file = StringIO()  # In-memory file to write the CSV data
                     st.write("Parsing and converting XML to CSV...")
@@ -143,7 +168,7 @@ if st.button("Start Conversion"):
                     csv_file, df_preview = stream_xml_to_csv_with_preview(response.raw, csv_file, stop_flag, root_tag)
 
                     # Step 2: Provide download button if process completes or is stopped
-                    st.success("Conversion complete or stopped! Click the button below to download the CSV.")
+                    st.success(f"Conversion complete or stopped! Root tag used: {root_tag}")
                     st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
 
                     # Display the final table (after stopping or completion)
@@ -155,4 +180,4 @@ if st.button("Start Conversion"):
         except Exception as e:
             st.error(f"An error occurred: {e}")
     else:
-        st.warning("Please enter a valid URL and root tag.")
+        st.warning("Please enter a valid URL.")
