@@ -25,14 +25,14 @@ def flatten_element(element, parent_prefix=""):
 
     return flat_data
 
-# Function to parse XML and stream it to CSV in batches
-def stream_xml_to_csv(xml_stream, csv_file):
-    # Initialize progress
+# Function to parse XML and stream it to CSV in batches, with real-time table preview
+def stream_xml_to_csv_with_preview(xml_stream, csv_file, stop_flag):
+    # Initialize progress and table preview
     progress = st.progress(0)
-    status_text = st.empty()
-
+    table_placeholder = st.empty()
+    preview_data = []  # For previewing the table
     headers = set()  # Track unique headers dynamically using a set
-    batch_size = 1000  # Process in batches of 1000 rows
+    batch_size = 100  # Process in smaller batches of 100 rows for real-time updates
     rows = []
     total_elements = 0
 
@@ -44,6 +44,10 @@ def stream_xml_to_csv(xml_stream, csv_file):
 
     # Process each XML element
     for event, elem in context:
+        if stop_flag():  # Stop if the user clicks "Stop" button
+            st.warning("Process stopped by the user.")
+            break
+
         if elem is not None and elem.tag is not None:
             # Flatten the element into a dictionary
             row_data = flatten_element(elem)
@@ -54,6 +58,7 @@ def stream_xml_to_csv(xml_stream, csv_file):
             # Only add the row if it has at least one non-empty value
             if any(value.strip() for value in row_data.values()):
                 rows.append(row_data)
+                preview_data.append(row_data)  # Add to the preview data
                 total_elements += 1
 
             # Write batch to CSV when the batch size is reached
@@ -73,14 +78,19 @@ def stream_xml_to_csv(xml_stream, csv_file):
                 rows = []
 
             # Update progress bar every 1000 rows
-            if total_elements % 1000 == 0:
+            if total_elements % 100 == 0:
                 progress.progress(min(total_elements / 50000, 1.0))  # Adjust based on estimated size
 
             # Clear memory for processed elements
             elem.clear()
 
+            # Display the preview table after each batch
+            if preview_data:
+                df_preview = pd.DataFrame(preview_data)
+                table_placeholder.dataframe(df_preview)
+
     # Write any remaining rows
-    if len(rows) > 0:
+    if len(rows) > 0 and not stop_flag():
         if not wrote_header:
             headers_list = sorted(headers)
             csv_writer.writerow(headers_list)
@@ -90,15 +100,25 @@ def stream_xml_to_csv(xml_stream, csv_file):
     return csv_file
 
 # Streamlit app interface
-st.title("Flexible XML to CSV Converter for Large Files")
+st.title("Flexible XML to CSV Converter with Live Table Preview")
 
 # URL input
 url = st.text_input("Enter the URL of the XML file")
 
+# Button to stop the process
+stop_processing = False
+
+# Function to return the stop flag status
+def stop_flag():
+    return stop_processing
+
 # Process the XML file
-if st.button("Convert to CSV"):
+if st.button("Start Conversion"):
     if url:
         try:
+            # Stop button to halt the process
+            stop_button = st.button("Stop")
+
             # Step 1: Stream the XML file using requests with stream=True
             st.write("Fetching XML file... This can take a while for very large files.")
 
@@ -122,11 +142,12 @@ if st.button("Convert to CSV"):
                     csv_file = StringIO()  # In-memory file to write the CSV data
                     st.write("Parsing and converting XML to CSV...")
 
-                    csv_file = stream_xml_to_csv(response.raw, csv_file)
+                    csv_file = stream_xml_to_csv_with_preview(response.raw, csv_file, stop_flag)
 
-                    # Step 2: Provide download button
-                    st.success("Conversion complete! Click the button below to download the CSV.")
-                    st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
+                    # Step 2: Provide download button if process completes
+                    if not stop_processing:
+                        st.success("Conversion complete! Click the button below to download the CSV.")
+                        st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
                 else:
                     st.error(f"Error: Unable to fetch XML file. HTTP Status Code: {response.status_code}")
         except Exception as e:
