@@ -31,7 +31,7 @@ def stream_xml_to_csv(xml_stream, csv_file):
     progress = st.progress(0)
     status_text = st.empty()
 
-    headers = set()  # Track unique headers dynamically
+    headers = set()  # Track unique headers dynamically using a set
     batch_size = 1000  # Process in batches of 1000 rows
     rows = []
     total_elements = 0
@@ -49,7 +49,7 @@ def stream_xml_to_csv(xml_stream, csv_file):
             row_data = flatten_element(elem)
 
             # Add new headers dynamically as we discover them
-            headers.update(row_data.keys())
+            headers.update(row_data.keys())  # Correctly using `update()` on a set
 
             rows.append(row_data)
             total_elements += 1
@@ -58,14 +58,14 @@ def stream_xml_to_csv(xml_stream, csv_file):
             if len(rows) == batch_size:
                 if not wrote_header:
                     # Write the header once
-                    headers = sorted(headers)  # Sorting headers to maintain consistent column order
-                    csv_writer.writerow(headers)
+                    headers_list = sorted(headers)  # Sorting headers to maintain consistent column order
+                    csv_writer.writerow(headers_list)
                     wrote_header = True
 
                 # Write the rows
                 for row in rows:
                     # Ensure all columns are filled, even if some data is missing
-                    csv_writer.writerow([row.get(header, '') for header in headers])
+                    csv_writer.writerow([row.get(header, '') for header in headers_list])
 
                 # Clear batch
                 rows = []
@@ -80,9 +80,10 @@ def stream_xml_to_csv(xml_stream, csv_file):
     # Write any remaining rows
     if len(rows) > 0:
         if not wrote_header:
-            csv_writer.writerow(headers)
+            headers_list = sorted(headers)
+            csv_writer.writerow(headers_list)
         for row in rows:
-            csv_writer.writerow([row.get(header, '') for header in headers])
+            csv_writer.writerow([row.get(header, '') for header in headers_list])
 
     return csv_file
 
