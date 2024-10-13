@@ -5,10 +5,10 @@ from lxml import etree
 import csv
 from io import StringIO
 
-# Helper function to recursively flatten XML elements
+# Helper function to flatten XML elements and their children
 def flatten_element(element, parent_prefix=""):
     flat_data = {}
-    
+
     # Process element's attributes as columns
     for attr_name, attr_value in element.attrib.items():
         key = f"{parent_prefix}{element.tag}_@{attr_name}"
@@ -18,7 +18,7 @@ def flatten_element(element, parent_prefix=""):
     if element.text and element.text.strip():
         flat_data[f"{parent_prefix}{element.tag}"] = element.text.strip()
 
-    # Recursively process child elements
+    # Recursively process child elements, ensuring they're part of the same row
     for child in element:
         child_data = flatten_element(child, parent_prefix=f"{parent_prefix}{element.tag}_")
         flat_data.update(child_data)
@@ -106,7 +106,7 @@ st.title("Flexible XML to CSV Converter with Live Table Preview")
 url = st.text_input("Enter the URL of the XML file")
 
 # Button to stop the process
-stop_processing = False
+stop_processing = st.button("Stop Conversion")
 
 # Function to return the stop flag status
 def stop_flag():
@@ -116,9 +116,6 @@ def stop_flag():
 if st.button("Start Conversion"):
     if url:
         try:
-            # Stop button to halt the process
-            stop_button = st.button("Stop")
-
             # Step 1: Stream the XML file using requests with stream=True
             st.write("Fetching XML file... This can take a while for very large files.")
 
