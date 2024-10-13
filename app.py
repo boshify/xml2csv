@@ -5,6 +5,26 @@ from lxml import etree
 import csv
 from io import StringIO
 
+# Helper function to recursively flatten XML elements
+def flatten_element(element, parent_prefix=""):
+    flat_data = {}
+    
+    # Process element's attributes as columns
+    for attr_name, attr_value in element.attrib.items():
+        key = f"{parent_prefix}{element.tag}_@{attr_name}"
+        flat_data[key] = attr_value
+
+    # Process element's text content
+    if element.text and element.text.strip():
+        flat_data[f"{parent_prefix}{element.tag}"] = element.text.strip()
+
+    # Recursively process child elements
+    for child in element:
+        child_data = flatten_element(child, parent_prefix=f"{parent_prefix}{element.tag}_")
+        flat_data.update(child_data)
+
+    return flat_data
+
 # Function to parse XML and stream it to CSV in batches
 def stream_xml_to_csv(xml_stream, csv_file):
     # Initialize progress
@@ -25,12 +45,11 @@ def stream_xml_to_csv(xml_stream, csv_file):
     # Process each XML element
     for event, elem in context:
         if elem is not None and elem.tag is not None:
-            row_data = {}
+            # Flatten the element into a dictionary
+            row_data = flatten_element(elem)
 
-            # Extract each product's data
-            for child in elem:
-                headers.add(child.tag)
-                row_data[child.tag] = child.text
+            # Add new headers dynamically as we discover them
+            headers.update(row_data.keys())
 
             rows.append(row_data)
             total_elements += 1
@@ -39,11 +58,13 @@ def stream_xml_to_csv(xml_stream, csv_file):
             if len(rows) == batch_size:
                 if not wrote_header:
                     # Write the header once
+                    headers = sorted(headers)  # Sorting headers to maintain consistent column order
                     csv_writer.writerow(headers)
                     wrote_header = True
 
                 # Write the rows
                 for row in rows:
+                    # Ensure all columns are filled, even if some data is missing
                     csv_writer.writerow([row.get(header, '') for header in headers])
 
                 # Clear batch
@@ -66,7 +87,7 @@ def stream_xml_to_csv(xml_stream, csv_file):
     return csv_file
 
 # Streamlit app interface
-st.title("Fast XML to CSV Converter for Large Files")
+st.title("Flexible XML to CSV Converter for Large Files")
 
 # URL input
 url = st.text_input("Enter the URL of the XML file")
