@@ -5,10 +5,10 @@ from lxml import etree
 import csv
 from io import StringIO
 
-# Helper function to flatten XML elements and their children
+# Helper function to flatten XML elements for one entity
 def flatten_element(element, parent_prefix=""):
     flat_data = {}
-
+    
     # Process element's attributes as columns
     for attr_name, attr_value in element.attrib.items():
         key = f"{parent_prefix}{element.tag}_@{attr_name}"
@@ -26,7 +26,7 @@ def flatten_element(element, parent_prefix=""):
     return flat_data
 
 # Function to parse XML and stream it to CSV in batches, with real-time table preview
-def stream_xml_to_csv_with_preview(xml_stream, csv_file, stop_flag):
+def stream_xml_to_csv_with_preview(xml_stream, csv_file, stop_flag, root_tag):
     # Initialize progress and table preview
     progress = st.progress(0)
     table_placeholder = st.empty()
@@ -36,8 +36,8 @@ def stream_xml_to_csv_with_preview(xml_stream, csv_file, stop_flag):
     rows = []
     total_elements = 0
 
-    # Use lxml's iterparse for efficient streamed parsing
-    context = etree.iterparse(xml_stream, events=("end",), recover=True)
+    # Use lxml's iterparse for efficient streamed parsing, target the specific root entity
+    context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
 
     csv_writer = csv.writer(csv_file)
     wrote_header = False  # To write header only once
@@ -48,7 +48,7 @@ def stream_xml_to_csv_with_preview(xml_stream, csv_file, stop_flag):
             st.warning("Process stopped by the user.")
             break
 
-        if elem is not None and elem.tag is not None:
+        if elem is not None and elem.tag == root_tag:
             # Flatten the element into a dictionary
             row_data = flatten_element(elem)
 
@@ -104,6 +104,7 @@ st.title("Flexible XML to CSV Converter with Live Table Preview")
 
 # URL input
 url = st.text_input("Enter the URL of the XML file")
+root_tag = st.text_input("Enter the root tag for the entities (e.g., 'Product')")
 
 # Button to stop the process
 stop_processing = st.button("Stop Conversion")
@@ -114,7 +115,7 @@ def stop_flag():
 
 # Process the XML file
 if st.button("Start Conversion"):
-    if url:
+    if url and root_tag:
         try:
             # Step 1: Stream the XML file using requests with stream=True
             st.write("Fetching XML file... This can take a while for very large files.")
@@ -139,7 +140,7 @@ if st.button("Start Conversion"):
                     csv_file = StringIO()  # In-memory file to write the CSV data
                     st.write("Parsing and converting XML to CSV...")
 
-                    csv_file, df_preview = stream_xml_to_csv_with_preview(response.raw, csv_file, stop_flag)
+                    csv_file, df_preview = stream_xml_to_csv_with_preview(response.raw, csv_file, stop_flag, root_tag)
 
                     # Step 2: Provide download button if process completes or is stopped
                     st.success("Conversion complete or stopped! Click the button below to download the CSV.")
@@ -154,4 +155,4 @@ if st.button("Start Conversion"):
         except Exception as e:
             st.error(f"An error occurred: {e}")
     else:
-        st.warning("Please enter a valid URL.")
+        st.warning("Please enter a valid URL and root tag.")
