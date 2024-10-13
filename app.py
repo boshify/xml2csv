@@ -97,7 +97,7 @@ def stream_xml_to_csv_with_preview(xml_stream, csv_file, stop_flag):
         for row in rows:
             csv_writer.writerow([row.get(header, '') for header in headers_list])
 
-    return csv_file
+    return csv_file, pd.DataFrame(preview_data)  # Return both the CSV file and preview DataFrame
 
 # Streamlit app interface
 st.title("Flexible XML to CSV Converter with Live Table Preview")
@@ -142,12 +142,16 @@ if st.button("Start Conversion"):
                     csv_file = StringIO()  # In-memory file to write the CSV data
                     st.write("Parsing and converting XML to CSV...")
 
-                    csv_file = stream_xml_to_csv_with_preview(response.raw, csv_file, stop_flag)
+                    csv_file, df_preview = stream_xml_to_csv_with_preview(response.raw, csv_file, stop_flag)
 
-                    # Step 2: Provide download button if process completes
-                    if not stop_processing:
-                        st.success("Conversion complete! Click the button below to download the CSV.")
-                        st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
+                    # Step 2: Provide download button if process completes or is stopped
+                    st.success("Conversion complete or stopped! Click the button below to download the CSV.")
+                    st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
+
+                    # Display the final table (after stopping or completion)
+                    if not df_preview.empty:
+                        st.write("Final Preview:")
+                        st.dataframe(df_preview)
                 else:
                     st.error(f"Error: Unable to fetch XML file. HTTP Status Code: {response.status_code}")
         except Exception as e:
