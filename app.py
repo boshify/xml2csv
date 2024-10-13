@@ -20,7 +20,12 @@ def stream_xml_to_csv(xml_stream):
 
     # Process each XML element
     for event, elem in context:
-        if elem.tag == context.root.tag:
+        # Ensure the element is valid and has a tag
+        if elem is not None and elem.tag is not None:
+            if total_elements == 0:  # First time, get root tag
+                context.root = elem
+
+            # Process valid XML elements
             row_data = []
 
             # Extract each product's data
