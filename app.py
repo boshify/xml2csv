@@ -14,7 +14,7 @@ def flatten_element(element, parent_prefix=""):
         key = f"{parent_prefix}{element.tag}_@{attr_name}"
         flat_data[key] = attr_value
 
-    # Process element's text content
+    # Process element's text content, strip whitespace
     if element.text and element.text.strip():
         flat_data[f"{parent_prefix}{element.tag}"] = element.text.strip()
 
@@ -49,10 +49,12 @@ def stream_xml_to_csv(xml_stream, csv_file):
             row_data = flatten_element(elem)
 
             # Add new headers dynamically as we discover them
-            headers.update(row_data.keys())  # Correctly using `update()` on a set
+            headers.update(row_data.keys())
 
-            rows.append(row_data)
-            total_elements += 1
+            # Only add the row if it has at least one non-empty value
+            if any(value.strip() for value in row_data.values()):
+                rows.append(row_data)
+                total_elements += 1
 
             # Write batch to CSV when the batch size is reached
             if len(rows) == batch_size:
