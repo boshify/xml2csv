@@ -4,6 +4,7 @@ import requests
 from lxml import etree
 from io import BytesIO, StringIO
 import csv
+import xml.etree.ElementTree as ET
 
 # Helper function to flatten XML elements for one entity
 def flatten_element(element, parent_prefix=""):
@@ -33,8 +34,10 @@ def parse_xml_preview(xml_stream):
 
     # Parse the first element for preview
     root_tag = None
+    raw_xml_sample = None
     for event, elem in context:
         root_tag = elem.tag
+        raw_xml_sample = ET.tostring(elem, encoding='unicode')  # Store the raw XML for preview
         row_data = flatten_element(elem)
         headers.update(row_data.keys())
         preview_data.append(row_data)
@@ -43,7 +46,7 @@ def parse_xml_preview(xml_stream):
 
     # Create DataFrame for preview
     df_preview = pd.DataFrame(preview_data, columns=sorted(headers))
-    return df_preview, root_tag
+    return df_preview, root_tag, raw_xml_sample
 
 # Streamlit app interface
 st.title("XML to CSV Converter with Attribute Mapping")
@@ -66,9 +69,11 @@ if uploaded_file is not None or xml_url:
             xml_stream = BytesIO(response.raw.read(10240))  # Use only the first 10KB for preview
 
         # Step 1: Provide preview of data
-        df_preview, root_tag = parse_xml_preview(xml_stream)
+        df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
         if root_tag:
             st.write(f"Detected root tag: {root_tag}")
+            st.write("Raw XML Sample:")
+            st.code(raw_xml_sample, language='xml')
             st.dataframe(df_preview)
 
             # Step 2: Mapping XML attributes to CSV columns
