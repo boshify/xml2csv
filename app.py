@@ -70,8 +70,20 @@ if uploaded_file is not None or xml_url:
             st.write("Fetching XML from URL...")
             response = requests.get(xml_url, stream=True)
             response.raise_for_status()
-            xml_stream = BytesIO(response.content)
-            df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
+            xml_stream = BytesIO()
+
+            # Read the XML stream in small chunks for preview
+            for chunk in response.iter_content(chunk_size=4096):
+                xml_stream.write(chunk)
+                xml_stream.seek(0)
+                try:
+                    df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
+                    if root_tag:
+                        break
+                except ET.ParseError:
+                    # Continue reading more chunks if the XML is incomplete
+                    xml_stream.seek(0, 2)  # Move to the end of the stream to append more data
+                    continue
 
         # Step 1: Provide preview of data
         if root_tag:
