@@ -114,18 +114,26 @@ if uploaded_file is not None or xml_url:
                 xml_stream.seek(0)  # Reset the stream to start from the beginning
                 context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
 
-                # Process elements iteratively, one at a time
-                for idx, (_, elem) in enumerate(context):
-                    if len(elem) > 0 or elem.attrib:  # Process only complex elements
-                        row_data = flatten_element(elem)
-                        row = [row_data.get(xml_col, '') for xml_col in mapping.keys()]
-                        csv_writer.writerow(row)
+                # Process elements iteratively, one at a time, with chunked reading
+                chunk_size = 4096
+                xml_stream = BytesIO()
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    xml_stream.write(chunk)
+                    xml_stream.seek(0)
+                    context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
+                    for idx, (_, elem) in enumerate(context):
+                        if len(elem) > 0 or elem.attrib:  # Process only complex elements
+                            row_data = flatten_element(elem)
+                            row = [row_data.get(xml_col, '') for xml_col in mapping.keys()]
+                            csv_writer.writerow(row)
 
-                        # Update the DataFrame and UI table with new row data
-                        results_df.loc[idx] = row
-                        results_table.dataframe(results_df)
+                            # Update the DataFrame and UI table with new row data
+                            results_df.loc[idx] = row
+                            results_table.dataframe(results_df)
 
-                        elem.clear()
+                            elem.clear()
+
+                        xml_stream.seek(0, 2)  # Move to the end of the stream to append more data
 
                 # Provide CSV download
                 st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
