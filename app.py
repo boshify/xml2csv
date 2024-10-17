@@ -6,6 +6,9 @@ from io import BytesIO, StringIO
 import csv
 import xml.etree.ElementTree as ET
 
+# Set testing mode to True to download only the first complex element
+testing_mode = True
+
 # Helper function to flatten XML elements for one entity
 def flatten_element(element, parent_prefix=""):
     flat_data = {}
@@ -92,11 +95,13 @@ if uploaded_file is not None or xml_url:
                 headers = list(mapping.values())
                 csv_writer.writerow(headers)
 
-                # Parse and write all elements based on the mapping
+                # Parse and write elements based on the mapping
                 response = requests.get(xml_url, stream=True) if xml_url else uploaded_file
                 xml_stream = BytesIO(response.raw.read()) if xml_url else BytesIO(uploaded_file.read())
                 context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
-                for _, elem in context:
+                for idx, (_, elem) in enumerate(context):
+                    if testing_mode and idx > 0:
+                        break  # In testing mode, only process the first complex element
                     row_data = flatten_element(elem)
                     row = [row_data.get(xml_col, '') for xml_col in mapping.keys()]
                     csv_writer.writerow(row)
