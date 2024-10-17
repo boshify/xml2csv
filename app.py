@@ -26,23 +26,24 @@ def flatten_element(element, parent_prefix=""):
 
     return flat_data
 
-# Function to parse XML and preview the first element
+# Function to parse XML and preview the first complex element
 def parse_xml_preview(xml_stream):
     preview_data = []
     headers = set()
     context = etree.iterparse(xml_stream, events=("end",), recover=True)
 
-    # Parse the first element for preview
+    # Parse the first element with children for preview
     root_tag = None
     raw_xml_sample = None
     for event, elem in context:
-        root_tag = elem.tag
-        raw_xml_sample = ET.tostring(elem, encoding='unicode')  # Store the raw XML for preview
-        row_data = flatten_element(elem)
-        headers.update(row_data.keys())
-        preview_data.append(row_data)
-        elem.clear()
-        break  # Only parse the first element
+        if len(elem) > 0 or elem.attrib:  # Ensure we get a complex element with attributes or children
+            root_tag = elem.tag
+            raw_xml_sample = ET.tostring(elem, encoding='unicode')  # Store the raw XML for preview
+            row_data = flatten_element(elem)
+            headers.update(row_data.keys())
+            preview_data.append(row_data)
+            elem.clear()
+            break  # Only parse the first complex element
 
     # Create DataFrame for preview
     df_preview = pd.DataFrame(preview_data, columns=sorted(headers))
