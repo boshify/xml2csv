@@ -74,13 +74,14 @@ if uploaded_file is not None or xml_url:
             # Read the XML stream in chunks until the first complex element is found
             for chunk in response.iter_content(chunk_size=4096):
                 xml_stream.write(chunk)
-                xml_stream.seek(0)
                 try:
+                    xml_stream.seek(0)
                     df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
                     if root_tag:
                         break
                 except ET.ParseError:
                     # Continue reading more chunks if the XML is incomplete
+                    xml_stream.seek(0, 2)  # Move to the end of the stream to append more data
                     continue
 
         # Step 1: Provide preview of data
