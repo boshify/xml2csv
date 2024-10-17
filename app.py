@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import requests
 from lxml import etree
-import csv
 from io import StringIO
-from collections import Counter
+import csv
 
 # Helper function to flatten XML elements for one entity
 def flatten_element(element, parent_prefix=""):
@@ -26,158 +25,65 @@ def flatten_element(element, parent_prefix=""):
 
     return flat_data
 
-# Function to guess the main root tag (repeated entity tag)
-def guess_root_tag(xml_stream):
-    context = etree.iterparse(xml_stream, events=("start",), recover=True)
-    tag_counter = Counter()
-    
-    for event, elem in context:
-        tag_counter[elem.tag] += 1
-        # Stop after counting 500 elements for efficiency
-        if len(tag_counter) > 500:
-            break
-        elem.clear()
-
-    # Guess the root tag by finding the most frequent tag (likely a repeated entity)
-    guessed_tag = tag_counter.most_common(1)[0][0]
-    
-    # Reset the stream for further processing after guessing the tag
-    xml_stream.seek(0)  # Reset stream position to beginning
-    return guessed_tag
-
-# Function to parse XML and stream it to CSV in batches, with real-time table preview
-def stream_xml_to_csv_with_preview(xml_stream, csv_file, stop_flag, root_tag):
-    # Initialize progress and table preview
-    progress = st.progress(0)
-    table_placeholder = st.empty()
-    preview_data = []  # For previewing the table
-    headers = set()  # Track unique headers dynamically using a set
-    batch_size = 100  # Process in smaller batches of 100 rows for real-time updates
-    rows = []
-    total_elements = 0
-
-    # Use lxml's iterparse for efficient streamed parsing, target the specific root entity
+# Function to parse XML and preview the data
+def parse_xml_preview(xml_stream, root_tag):
+    preview_data = []
+    headers = set()
     context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
 
-    csv_writer = csv.writer(csv_file)
-    wrote_header = False  # To write header only once
+    # Parse first 10 elements for preview
+    for _, elem in zip(range(10), context):
+        _, element = elem
+        row_data = flatten_element(element)
+        headers.update(row_data.keys())
+        preview_data.append(row_data)
+        element.clear()
 
-    # Process each XML element
-    for event, elem in context:
-        if stop_flag():  # Stop if the user clicks "Stop" button
-            st.warning("Process stopped by the user.")
-            break
-
-        if elem is not None and elem.tag == root_tag:
-            # Flatten the element into a dictionary
-            row_data = flatten_element(elem)
-
-            # Add new headers dynamically as we discover them
-            headers.update(row_data.keys())
-
-            # Only add the row if it has at least one non-empty value
-            if any(value.strip() for value in row_data.values()):
-                rows.append(row_data)
-                preview_data.append(row_data)  # Add to the preview data
-                total_elements += 1
-
-            # Write batch to CSV when the batch size is reached
-            if len(rows) == batch_size:
-                if not wrote_header:
-                    # Write the header once
-                    headers_list = sorted(headers)  # Sorting headers to maintain consistent column order
-                    csv_writer.writerow(headers_list)
-                    wrote_header = True
-
-                # Write the rows
-                for row in rows:
-                    # Ensure all columns are filled, even if some data is missing
-                    csv_writer.writerow([row.get(header, '') for header in headers_list])
-
-                # Clear batch
-                rows = []
-
-            # Update progress bar every 1000 rows
-            if total_elements % 100 == 0:
-                progress.progress(min(total_elements / 50000, 1.0))  # Adjust based on estimated size
-
-            # Clear memory for processed elements
-            elem.clear()
-
-            # Display the preview table after each batch
-            if preview_data:
-                df_preview = pd.DataFrame(preview_data)
-                table_placeholder.dataframe(df_preview)
-
-    # Write any remaining rows
-    if len(rows) > 0 and not stop_flag():
-        if not wrote_header:
-            headers_list = sorted(headers)
-            csv_writer.writerow(headers_list)
-        for row in rows:
-            csv_writer.writerow([row.get(header, '') for header in headers_list])
-
-    return csv_file, pd.DataFrame(preview_data)  # Return both the CSV file and preview DataFrame
+    # Create DataFrame for preview
+    df_preview = pd.DataFrame(preview_data, columns=sorted(headers))
+    return df_preview
 
 # Streamlit app interface
-st.title("Flexible XML to CSV Converter with Live Table Preview")
+st.title("XML to CSV Converter with Attribute Mapping")
 
-# URL input
-url = st.text_input("Enter the URL of the XML file")
+# File uploader
+uploaded_file = st.file_uploader("Upload an XML file", type="xml")
 
-# Button to stop the process
-stop_processing = st.button("Stop Conversion")
+if uploaded_file is not None:
+    try:
+        # Step 1: Provide preview of data
+        st.write("Previewing XML data...")
+        xml_stream = StringIO(uploaded_file.getvalue().decode("utf-8"))
+        root_tag = st.text_input("Enter the root tag for the XML elements you want to convert:")
+        if root_tag:
+            df_preview = parse_xml_preview(xml_stream, root_tag)
+            st.dataframe(df_preview)
 
-# Function to return the stop flag status
-def stop_flag():
-    return stop_processing
+            # Step 2: Mapping XML attributes to CSV columns
+            st.write("Map XML attributes to CSV columns")
+            mapping = {}
+            for column in df_preview.columns:
+                selected = st.selectbox(f"Map '{column}' to CSV column:", ["Ignore"] + list(df_preview.columns), index=0)
+                if selected != "Ignore":
+                    mapping[column] = selected
 
-# Process the XML file
-if st.button("Start Conversion"):
-    if url:
-        try:
-            # Step 1: Stream the XML file using requests with stream=True
-            st.write("Fetching XML file... This can take a while for very large files.")
+            # Step 3: Convert to CSV after mapping
+            if st.button("Convert to CSV"):
+                csv_file = StringIO()
+                csv_writer = csv.writer(csv_file)
+                headers = list(mapping.values())
+                csv_writer.writerow(headers)
 
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:92.0) Gecko/20100101 Firefox/92.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0',
-            }
+                # Parse and write all elements based on the mapping
+                xml_stream.seek(0)  # Reset the stream again for full parsing
+                context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
+                for _, elem in context:
+                    row_data = flatten_element(elem)
+                    row = [row_data.get(xml_col, '') for xml_col in mapping.keys()]
+                    csv_writer.writerow(row)
+                    elem.clear()
 
-            with requests.get(url, headers=headers, stream=True) as response:
-                if response.status_code == 200:
-                    # Guess the root tag for the main entities
-                    st.write("Guessing the root entity tag...")
-                    root_tag = guess_root_tag(response.raw)
-
-                    st.write(f"Guessed root tag: {root_tag}")
-
-                    # Stream the XML data and save CSV directly to a file
-                    csv_file = StringIO()  # In-memory file to write the CSV data
-                    st.write("Parsing and converting XML to CSV...")
-
-                    csv_file, df_preview = stream_xml_to_csv_with_preview(response.raw, csv_file, stop_flag, root_tag)
-
-                    # Step 2: Provide download button if process completes or is stopped
-                    st.success(f"Conversion complete or stopped! Root tag used: {root_tag}")
-                    st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
-
-                    # Display the final table (after stopping or completion)
-                    if not df_preview.empty:
-                        st.write("Final Preview:")
-                        st.dataframe(df_preview)
-                else:
-                    st.error(f"Error: Unable to fetch XML file. HTTP Status Code: {response.status_code}")
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-    else:
-        st.warning("Please enter a valid URL.")
+                # Provide CSV download
+                st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
