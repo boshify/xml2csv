@@ -99,8 +99,7 @@ if uploaded_file is not None or xml_url:
                 results_table = st.empty()
 
                 # Parse and write elements based on the mapping, element by element
-                response = requests.get(xml_url, stream=True) if xml_url else None
-                xml_stream = response.iter_content(chunk_size=4096) if xml_url else BytesIO(uploaded_file.read())
+                xml_stream.seek(0)  # Reset the stream to start from the beginning
                 context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
 
                 # Process elements iteratively, one at a time
