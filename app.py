@@ -6,8 +6,8 @@ from io import BytesIO, StringIO
 import csv
 import xml.etree.ElementTree as ET
 
-# Set testing mode to True to download only the first complex element
-testing_mode = True
+# Set testing mode to False to process the entire XML file
+testing_mode = False
 
 # Helper function to flatten XML elements for one entity
 def flatten_element(element, parent_prefix=""):
@@ -94,22 +94,24 @@ if uploaded_file is not None or xml_url:
                 headers = list(mapping.values())
                 csv_writer.writerow(headers)
 
+                # Create an empty DataFrame to display ongoing results
+                results_df = pd.DataFrame(columns=headers)
+                results_table = st.empty()
+
                 # Parse and write elements based on the mapping
-                if testing_mode:
-                    # Use the already parsed first complex element in testing mode
-                    row_data = flatten_element(ET.fromstring(raw_xml_sample))
+                response = requests.get(xml_url, stream=True) if xml_url else uploaded_file
+                xml_stream = BytesIO(response.raw.read()) if xml_url else BytesIO(uploaded_file.read())
+                context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
+                for idx, (_, elem) in enumerate(context):
+                    row_data = flatten_element(elem)
                     row = [row_data.get(xml_col, '') for xml_col in mapping.keys()]
                     csv_writer.writerow(row)
-                else:
-                    # Parse the full XML stream if not in testing mode
-                    response = requests.get(xml_url, stream=True) if xml_url else uploaded_file
-                    xml_stream = BytesIO(response.raw.read()) if xml_url else BytesIO(uploaded_file.read())
-                    context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
-                    for _, elem in context:
-                        row_data = flatten_element(elem)
-                        row = [row_data.get(xml_col, '') for xml_col in mapping.keys()]
-                        csv_writer.writerow(row)
-                        elem.clear()
+
+                    # Update the DataFrame and UI table with new row data
+                    results_df.loc[idx] = row
+                    results_table.dataframe(results_df)
+
+                    elem.clear()
 
                 # Provide CSV download
                 st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
