@@ -66,7 +66,7 @@ if uploaded_file is not None or xml_url:
             st.write("Fetching XML from URL...")
             response = requests.get(xml_url, stream=True)
             response.raise_for_status()
-            xml_stream = BytesIO(response.raw.read(10240))  # Use only the first 10KB for preview
+            xml_stream = BytesIO(response.raw.read(40960))  # Use 40KB for preview
 
         # Step 1: Provide preview of data
         df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
