@@ -96,16 +96,21 @@ if uploaded_file is not None or xml_url:
                 csv_writer.writerow(headers)
 
                 # Parse and write elements based on the mapping
-                response = requests.get(xml_url, stream=True) if xml_url else uploaded_file
-                xml_stream = BytesIO(response.raw.read()) if xml_url else BytesIO(uploaded_file.read())
-                context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
-                for idx, (_, elem) in enumerate(context):
-                    if testing_mode and idx > 0:
-                        break  # In testing mode, only process the first complex element
-                    row_data = flatten_element(elem)
+                if testing_mode:
+                    # Use the already parsed first complex element in testing mode
+                    row_data = flatten_element(ET.fromstring(raw_xml_sample))
                     row = [row_data.get(xml_col, '') for xml_col in mapping.keys()]
                     csv_writer.writerow(row)
-                    elem.clear()
+                else:
+                    # Parse the full XML stream if not in testing mode
+                    response = requests.get(xml_url, stream=True) if xml_url else uploaded_file
+                    xml_stream = BytesIO(response.raw.read()) if xml_url else BytesIO(uploaded_file.read())
+                    context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
+                    for _, elem in context:
+                        row_data = flatten_element(elem)
+                        row = [row_data.get(xml_col, '') for xml_col in mapping.keys()]
+                        csv_writer.writerow(row)
+                        elem.clear()
 
                 # Provide CSV download
                 st.download_button(label="Download CSV", data=csv_file.getvalue(), file_name="converted_data.csv", mime="text/csv")
