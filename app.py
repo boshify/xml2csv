@@ -26,13 +26,15 @@ def flatten_element(element, parent_prefix=""):
     return flat_data
 
 # Function to parse XML and preview the first element
-def parse_xml_preview(xml_stream, root_tag):
+def parse_xml_preview(xml_stream):
     preview_data = []
     headers = set()
-    context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
+    context = etree.iterparse(xml_stream, events=("end",), recover=True)
 
     # Parse the first element for preview
-    for _, elem in context:
+    root_tag = None
+    for event, elem in context:
+        root_tag = elem.tag
         row_data = flatten_element(elem)
         headers.update(row_data.keys())
         preview_data.append(row_data)
@@ -41,7 +43,7 @@ def parse_xml_preview(xml_stream, root_tag):
 
     # Create DataFrame for preview
     df_preview = pd.DataFrame(preview_data, columns=sorted(headers))
-    return df_preview
+    return df_preview, root_tag
 
 # Streamlit app interface
 st.title("XML to CSV Converter with Attribute Mapping")
@@ -64,9 +66,9 @@ if uploaded_file is not None or xml_url:
             xml_stream = StringIO(response.iter_content(chunk_size=1024).__next__().decode("utf-8"))  # Fetch only the first chunk for preview
 
         # Step 1: Provide preview of data
-        root_tag = st.text_input("Enter the root tag for the XML elements you want to convert:")
+        df_preview, root_tag = parse_xml_preview(xml_stream)
         if root_tag:
-            df_preview = parse_xml_preview(xml_stream, root_tag)
+            st.write(f"Detected root tag: {root_tag}")
             st.dataframe(df_preview)
 
             # Step 2: Mapping XML attributes to CSV columns
