@@ -81,7 +81,7 @@ if uploaded_file is not None or xml_url:
             st.write("Map XML attributes to CSV columns")
             mapping = {}
             for column in df_preview.columns:
-                selected = st.selectbox(f"Map '{column}' to CSV column:", ["Ignore"] + list(df_preview.columns), index=0)
+                selected = st.selectbox(f"Map '{column}' to CSV column:", [column, "Ignore"] + list(df_preview.columns), index=0)
                 if selected != "Ignore":
                     mapping[column] = selected
 
