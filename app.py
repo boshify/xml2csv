@@ -63,7 +63,7 @@ if uploaded_file is not None or xml_url:
             st.write("Fetching XML from URL...")
             response = requests.get(xml_url, stream=True)
             response.raise_for_status()
-            xml_stream = BytesIO(response.content)  # Use full content for parsing
+            xml_stream = BytesIO(response.content[:10240])  # Use only the first 10KB for preview
 
         # Step 1: Provide preview of data
         df_preview, root_tag = parse_xml_preview(xml_stream)
@@ -87,7 +87,8 @@ if uploaded_file is not None or xml_url:
                 csv_writer.writerow(headers)
 
                 # Parse and write all elements based on the mapping
-                xml_stream.seek(0)  # Reset the stream again for full parsing
+                response = requests.get(xml_url, stream=True) if xml_url else uploaded_file
+                xml_stream = BytesIO(response.content) if xml_url else BytesIO(uploaded_file.read())
                 context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
                 for _, elem in context:
                     row_data = flatten_element(elem)
