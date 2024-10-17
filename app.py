@@ -46,14 +46,24 @@ def parse_xml_preview(xml_stream, root_tag):
 # Streamlit app interface
 st.title("XML to CSV Converter with Attribute Mapping")
 
-# File uploader
+# File uploader or URL input
 uploaded_file = st.file_uploader("Upload an XML file", type="xml")
+xml_url = st.text_input("Or enter the URL of the XML file")
 
-if uploaded_file is not None:
+if uploaded_file is not None or xml_url:
     try:
+        if uploaded_file is not None:
+            # Load XML from uploaded file
+            st.write("Previewing XML data...")
+            xml_stream = StringIO(uploaded_file.getvalue().decode("utf-8"))
+        elif xml_url:
+            # Load XML from URL
+            st.write("Fetching XML from URL...")
+            response = requests.get(xml_url)
+            response.raise_for_status()
+            xml_stream = StringIO(response.text)
+
         # Step 1: Provide preview of data
-        st.write("Previewing XML data...")
-        xml_stream = StringIO(uploaded_file.getvalue().decode("utf-8"))
         root_tag = st.text_input("Enter the root tag for the XML elements you want to convert:")
         if root_tag:
             df_preview = parse_xml_preview(xml_stream, root_tag)
