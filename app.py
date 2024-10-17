@@ -59,9 +59,9 @@ if uploaded_file is not None or xml_url:
         elif xml_url:
             # Load XML from URL
             st.write("Fetching XML from URL...")
-            response = requests.get(xml_url)
+            response = requests.get(xml_url, stream=True)
             response.raise_for_status()
-            xml_stream = StringIO(response.text)
+            xml_stream = StringIO(response.iter_content(chunk_size=1024).__next__().decode("utf-8"))  # Fetch only the first chunk for preview
 
         # Step 1: Provide preview of data
         root_tag = st.text_input("Enter the root tag for the XML elements you want to convert:")
