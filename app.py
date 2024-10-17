@@ -25,19 +25,19 @@ def flatten_element(element, parent_prefix=""):
 
     return flat_data
 
-# Function to parse XML and preview the data
+# Function to parse XML and preview the first element
 def parse_xml_preview(xml_stream, root_tag):
     preview_data = []
     headers = set()
     context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
 
-    # Parse first 10 elements for preview
-    for _, elem in zip(range(10), context):
-        _, element = elem
-        row_data = flatten_element(element)
+    # Parse the first element for preview
+    for _, elem in context:
+        row_data = flatten_element(elem)
         headers.update(row_data.keys())
         preview_data.append(row_data)
-        element.clear()
+        elem.clear()
+        break  # Only parse the first element
 
     # Create DataFrame for preview
     df_preview = pd.DataFrame(preview_data, columns=sorted(headers))
