@@ -63,7 +63,7 @@ if uploaded_file is not None or xml_url:
         if uploaded_file is not None:
             # Load XML from uploaded file
             st.write("Previewing XML data...")
-            xml_stream = BytesIO(uploaded_file.read())
+            xml_stream = BytesIO(uploaded_file.read(4096))  # Read only the first 4KB for preview
             df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
         elif xml_url:
             # Load XML from URL
@@ -113,9 +113,14 @@ if uploaded_file is not None or xml_url:
 
                 # Parse and write elements based on the mapping, element by element
                 if uploaded_file is not None:
-                    xml_stream = BytesIO(uploaded_file.getvalue())  # Use the full content for conversion
+                    xml_stream = BytesIO(uploaded_file.read())  # Use the full content for conversion
                 elif xml_url:
-                    xml_stream = BytesIO(response.content)  # Use the already downloaded content for conversion
+                    # Stream the content in chunks for conversion
+                    response = requests.get(xml_url, stream=True)
+                    response.raise_for_status()
+                    xml_stream = BytesIO()
+                    for chunk in response.iter_content(chunk_size=4096):
+                        xml_stream.write(chunk)
 
                 context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
 
