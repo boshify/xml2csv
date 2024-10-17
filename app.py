@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from lxml import etree
-from io import StringIO
+from io import BytesIO, StringIO
 import csv
 
 # Helper function to flatten XML elements for one entity
@@ -57,13 +57,13 @@ if uploaded_file is not None or xml_url:
         if uploaded_file is not None:
             # Load XML from uploaded file
             st.write("Previewing XML data...")
-            xml_stream = StringIO(uploaded_file.getvalue().decode("utf-8"))
+            xml_stream = BytesIO(uploaded_file.read())
         elif xml_url:
             # Load XML from URL
             st.write("Fetching XML from URL...")
             response = requests.get(xml_url, stream=True)
             response.raise_for_status()
-            xml_stream = StringIO(response.iter_content(chunk_size=1024).__next__().decode("utf-8"))  # Fetch only the first chunk for preview
+            xml_stream = BytesIO(response.content)  # Use full content for parsing
 
         # Step 1: Provide preview of data
         df_preview, root_tag = parse_xml_preview(xml_stream)
