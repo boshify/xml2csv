@@ -19,8 +19,7 @@ def flatten_element(element, parent_prefix=""):
         flat_data[key] = attr_value
 
     # Process element's text content, strip whitespace
-    if element.text and element.text.strip():
-        flat_data[f"{parent_prefix}{element.tag}"] = element.text.strip()
+    flat_data[f"{parent_prefix}{element.tag}"] = element.text.strip() if element.text else ""
 
     # Recursively process child elements, ensuring they're part of the same row
     for child in element:
