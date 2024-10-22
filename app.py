@@ -63,27 +63,15 @@ if uploaded_file is not None or xml_url:
         if uploaded_file is not None:
             # Load XML from uploaded file
             st.write("Previewing XML data...")
-            xml_stream = BytesIO(uploaded_file.read(4096))  # Read only the first 4KB for preview
+            xml_stream = BytesIO(uploaded_file.read())  # Read the full content for preview
             df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
         elif xml_url:
             # Load XML from URL
             st.write("Fetching XML from URL...")
             response = requests.get(xml_url, stream=True)
             response.raise_for_status()
-            xml_stream = BytesIO()
-
-            # Read the XML stream in small chunks for preview
-            for chunk in response.iter_content(chunk_size=4096):
-                xml_stream.write(chunk)
-                xml_stream.seek(0)
-                try:
-                    df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
-                    if root_tag:
-                        break
-                except ET.ParseError:
-                    # Continue reading more chunks if the XML is incomplete
-                    xml_stream.seek(0, 2)  # Move to the end of the stream to append more data
-                    continue
+            xml_stream = BytesIO(response.content)  # Read the full content for preview
+            df_preview, root_tag, raw_xml_sample = parse_xml_preview(xml_stream)
 
         # Step 1: Provide preview of data
         if root_tag:
@@ -113,14 +101,9 @@ if uploaded_file is not None or xml_url:
 
                 # Parse and write elements based on the mapping, element by element
                 if uploaded_file is not None:
-                    xml_stream = BytesIO(uploaded_file.read())  # Use the full content for conversion
+                    xml_stream = BytesIO(uploaded_file.getvalue())  # Use the full content for conversion
                 elif xml_url:
-                    # Stream the content in chunks for conversion
-                    response = requests.get(xml_url, stream=True)
-                    response.raise_for_status()
-                    xml_stream = BytesIO()
-                    for chunk in response.iter_content(chunk_size=4096):
-                        xml_stream.write(chunk)
+                    xml_stream = BytesIO(response.content)  # Use the full content for conversion
 
                 context = etree.iterparse(xml_stream, events=("end",), tag=root_tag, recover=True)
 
